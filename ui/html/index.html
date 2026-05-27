@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSRP Admin Logger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:          #0a0c10;
+    --surface:     #111318;
+    --border:      #1e2330;
+    --border-glow: #2a3560;
+    --text:        #d4daf0;
+    --muted:       #6b7399;
+    --accent:      #4f7aff;
+    --accent-dim:  #243460;
+    --dev:         #00c9a7;
+    --dev-dim:     #003d32;
+    --danger:      #ff4f4f;
+    --warn:        #ffb84f;
+    --success:     #4fff9a;
+    --mono:        "Space Mono", monospace;
+    --sans:        "Syne", sans-serif;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    font-family: var(--sans);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  #overlay {
+    position: fixed; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,.65);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+
+  #overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .panel {
+    width: 520px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(79,122,255,.12), 0 24px 48px rgba(0,0,0,.6);
+    transform: translateY(20px) scale(.97);
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+  }
+
+  #overlay.visible .panel {
+    transform: translateY(0) scale(1);
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 18px 22px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #111927 0%, #0d1020 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header::before {
+    content: "";
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 120px; height: 120px;
+    background: radial-gradient(circle, rgba(79,122,255,.18) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    border: 1px solid;
+    font-family: var(--mono);
+  }
+
+  .badge.admin { color: var(--accent); border-color: var(--accent-dim); background: rgba(79,122,255,.08); }
+  .badge.dev   { color: var(--dev);   border-color: var(--dev-dim);    background: rgba(0,201,167,.08); }
+  .badge.cat   { color: var(--muted); border-color: var(--border);     background: rgba(255,255,255,.03); font-size: 9px; }
+
+  .header h1 {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    color: #fff;
+  }
+
+  .header p {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+
+  /* ── Info Cards ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .info-card .label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-bottom: 4px;
+  }
+
+  .info-card .value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .info-card .value.mono {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  /* ── Body ── */
+  .body {
+    padding: 16px 22px 20px;
+  }
+
+  .form-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-bottom: 7px;
+    display: block;
+  }
+
+  /* Quick reason pills */
+  .quick-reasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .pill {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    transition: all .15s ease;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  .pill:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,122,255,.07); }
+  .pill.active { border-color: var(--accent); color: var(--accent); background: rgba(79,122,255,.14); }
+
+  textarea {
+    width: 100%;
+    min-height: 76px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 11px 13px;
+    resize: none;
+    outline: none;
+    transition: border-color .2s ease, box-shadow .2s ease;
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,122,255,.12);
+  }
+
+  textarea::placeholder { color: var(--muted); }
+
+  /* ── Actions ── */
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    flex: 1;
+    height: 40px;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid;
+    letter-spacing: .02em;
+    transition: all .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .btn:active { transform: scale(.97); }
+
+  .btn-cancel {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  .btn-cancel:hover { border-color: var(--danger); color: var(--danger); background: rgba(255,79,79,.06); }
+
+  .btn-submit {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(79,122,255,.3);
+  }
+  .btn-submit:hover { background: #6b92ff; box-shadow: 0 0 28px rgba(79,122,255,.45); }
+  .btn-submit:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+  .btn-dev {
+    flex: 0 0 auto;
+    width: auto;
+    padding: 0 16px;
+    background: var(--dev-dim);
+    border-color: var(--dev);
+    color: var(--dev);
+    box-shadow: 0 0 16px rgba(0,201,167,.2);
+    display: none;
+  }
+  .btn-dev.visible { display: flex; }
+  .btn-dev:hover { background: rgba(0,201,167,.2); box-shadow: 0 0 24px rgba(0,201,167,.35); }
+
+  /* ── Footer ── */
+  .footer {
+    padding: 11px 22px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-id {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--border-glow);
+  }
+
+  .footer-esc {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .key {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  /* ── Divider ── */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .divider hr { flex: 1; border: none; border-top: 1px solid var(--border); }
+  .divider span { font-size: 10px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface);
+    border: 1px solid var(--success);
+    color: var(--success);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: all .3s ease;
+    box-shadow: 0 0 20px rgba(79,255,154,.2);
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Category colour accent on left border of panel header */
+  .panel[data-cat="moderation"] .header { border-left: 3px solid #ff4f4f; }
+  .panel[data-cat="teleport"]   .header { border-left: 3px solid #4f7aff; }
+  .panel[data-cat="spectate"]   .header { border-left: 3px solid #a64fff; }
+  .panel[data-cat="spawn"]      .header { border-left: 3px solid #4fff9a; }
+  .panel[data-cat="other"]      .header { border-left: 3px solid #ffb84f; }
+  .panel[data-cat="developer"]  .header { border-left: 3px solid #00c9a7; }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="panel" id="panel" data-cat="other">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <span class="badge admin" id="badge-role">ADMIN</span>
+        <span class="badge cat" id="badge-cat">MODERATION</span>
+      </div>
+      <h1 id="title">Action Report Required</h1>
+      <p id="subtitle">/ — —</p>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Command</div>
+        <div class="value mono" id="info-cmd">—</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Category</div>
+        <div class="value" id="info-cat">—</div>
+      </div>
+      <div class="info-card" id="card-target" style="display:none">
+        <div class="label">Target Player</div>
+        <div class="value" id="info-target">—</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Report ID</div>
+        <div class="value mono" id="info-rid">—</div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+      <label class="form-label">Quick Select</label>
+      <div class="quick-reasons" id="quick-reasons"></div>
+
+      <div class="divider">
+        <hr><span>or type a custom reason</span><hr>
+      </div>
+
+      <label class="form-label">Reason for Action</label>
+      <textarea id="reason-input" placeholder="Describe why this action was taken…" maxlength="500"></textarea>
+
+      <div class="actions">
+        <button class="btn btn-cancel" id="btn-cancel">✕ Cancel</button>
+        <button class="btn btn-dev" id="btn-dev">🛠 Developer Use</button>
+        <button class="btn btn-submit" id="btn-submit" disabled>File Report →</button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="footer-id" id="footer-id">RPT-000000-0000000000</span>
+      <span class="footer-esc"><span class="key">ESC</span> to dismiss</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const overlay      = document.getElementById("overlay");
+  const panel        = document.getElementById("panel");
+  const badgeRole    = document.getElementById("badge-role");
+  const badgeCat     = document.getElementById("badge-cat");
+  const titleEl      = document.getElementById("title");
+  const subtitleEl   = document.getElementById("subtitle");
+  const infoCmdEl    = document.getElementById("info-cmd");
+  const infoCatEl    = document.getElementById("info-cat");
+  const infoTargetEl = document.getElementById("info-target");
+  const cardTarget   = document.getElementById("card-target");
+  const infoRidEl    = document.getElementById("info-rid");
+  const footerIdEl   = document.getElementById("footer-id");
+  const quickEl      = document.getElementById("quick-reasons");
+  const textarea     = document.getElementById("reason-input");
+  const btnCancel    = document.getElementById("btn-cancel");
+  const btnDev       = document.getElementById("btn-dev");
+  const btnSubmit    = document.getElementById("btn-submit");
+  const toastEl      = document.getElementById("toast");
+
+  const QUICK_REASONS = [
+    "Breaking Server Rules",
+    "RDM / VDM",
+    "Exploiting / Cheating",
+    "Harassment / Toxicity",
+    "LTAP",
+    "Fail RP",
+    "Staff Assistance / Test",
+    "Whitelisted Request",
+  ];
+
+  let currentData = null;
+
+  // ── Build quick-reason pills
+  function buildQuickReasons() {
+    quickEl.innerHTML = "";
+    QUICK_REASONS.forEach(r => {
+      const pill = document.createElement("button");
+      pill.className = "pill";
+      pill.textContent = r;
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".pill.active").forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        textarea.value = r;
+        validateSubmit();
+      });
+      quickEl.appendChild(pill);
+    });
+  }
+
+  function validateSubmit() {
+    btnSubmit.disabled = textarea.value.trim().length < 3;
+  }
+
+  textarea.addEventListener("input", () => {
+    validateSubmit();
+    // Deselect pills if user types custom
+    document.querySelectorAll(".pill.active").forEach(p => p.classList.remove("active"));
+  });
+
+  function showToast(msg, isGood = true) {
+    toastEl.style.borderColor = isGood ? "var(--success)" : "var(--danger)";
+    toastEl.style.color       = isGood ? "var(--success)" : "var(--danger)";
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    setTimeout(() => toastEl.classList.remove("show"), 2800);
+  }
+
+  // ── Open form
+  function openForm(data) {
+    currentData = data;
+
+    const isDev = data.isDev || false;
+    const cat   = data.category || "other";
+
+    panel.dataset.cat = isDev ? "developer" : cat;
+
+    badgeRole.className = "badge " + (isDev ? "dev" : "admin");
+    badgeRole.textContent = isDev ? "⚡ DEVELOPER" : "👮 ADMIN";
+    badgeCat.textContent  = cat.toUpperCase();
+
+    titleEl.textContent    = data.label || "Action Report Required";
+    subtitleEl.textContent = "/" + (data.command || "unknown") + " — reason required before execution";
+
+    infoCmdEl.textContent = "/" + (data.command || "—");
+    infoCatEl.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+    infoRidEl.textContent = data.reportId || "—";
+    footerIdEl.textContent = data.reportId || "—";
+
+    if (data.target) {
+      cardTarget.style.display = "block";
+      infoTargetEl.textContent = data.target.name + " [" + data.target.serverId + "]";
+    } else {
+      cardTarget.style.display = "none";
+    }
+
+    // Dev button visibility
+    if (isDev) {
+      btnDev.classList.add("visible");
+    } else {
+      btnDev.classList.remove("visible");
+    }
+
+    textarea.value = "";
+    validateSubmit();
+    buildQuickReasons();
+
+    overlay.classList.add("visible");
+    setTimeout(() => textarea.focus(), 350);
+  }
+
+  function closeForm() {
+    overlay.classList.remove("visible");
+    currentData = null;
+  }
+
+  // ── Button handlers
+  btnSubmit.addEventListener("click", () => {
+    const reason = textarea.value.trim();
+    if (reason.length < 3) return;
+    fetch("https://gsrp_adminlogs/submitForm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason, isDeveloper: false }),
+    });
+    showToast("✅ Report filed successfully.");
+    closeForm();
+  });
+
+  btnDev.addEventListener("click", () => {
+    fetch("https://gsrp_adminlogs/devButton", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    showToast("🛠 Developer action logged.");
+    closeForm();
+  });
+
+  btnCancel.addEventListener("click", () => {
+    fetch("https://gsrp_adminlogs/cancelForm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    closeForm();
+  });
+
+  // ── Keyboard shortcuts
+  document.addEventListener("keydown", e => {
+    if (!overlay.classList.contains("visible")) return;
+    if (e.key === "Escape") btnCancel.click();
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      if (!btnSubmit.disabled) btnSubmit.click();
+    }
+  });
+
+  // ── NUI message listener
+  window.addEventListener("message", e => {
+    const { action, data } = e.data || {};
+    if (action === "openForm") openForm(data);
+    if (action === "closeForm") closeForm();
+  });
+</script>
+</body>
+</html>
