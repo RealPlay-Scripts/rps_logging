@@ -6,9 +6,12 @@
 Config = {}
 
 -- ─── Website API ────────────────────────────────────────────
+-- Set as server convars in server.cfg, never commit real values here:
+--   set rps_logging_api_url "https://yoursite.example"
+--   set rps_logging_api_key "your-api-key"   (write scope)
 Config.API = {
-    BaseURL  = "https://web.goldenshoresrp.com",  -- No trailing slash
-    Key      = "cfrp_CLHe-MqStvo6hcR0ojyi1xlj7V6GgO_CugYHzcvCXtieYgdeUpcqKA5t9Bx-VJXc",            -- Sent as X-API-Key header AND ?api_key=
+    BaseURL  = GetConvar('rps_logging_api_url', 'https://yoursite.example'),  -- No trailing slash
+    Key      = GetConvar('rps_logging_api_key', ''),  -- Sent as X-API-Key header AND ?api_key=
     Version  = "1.0",
     Timeout  = 10000,
 }

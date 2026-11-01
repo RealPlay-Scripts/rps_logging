@@ -117,6 +117,20 @@ local function BuildPayload(report, adminUid, targetUid)
 end
 
 -- ─── Create Website Report ────────────────────────────────────
+-- KNOWN GAP: as of this integration, the website's admin-logs storage
+-- endpoint (app/admin/admin_logs_backend.py, which defines POST
+-- /api/webhooks/trigger for event "admin_report_created" and GET
+-- /api/admin-logs for listing) is NOT registered in the running Flask
+-- app — it ships as dead code with an unresolved no-op auth check on
+-- its own GET endpoints (see the security audit, finding 3). Until
+-- that's fixed and wired in on the website side, this POST to
+-- /api/admin-logs has no matching route and will 404. TriggerSiteWebhook
+-- below (POST /api/webhooks/trigger, event "admin_action") also won't
+-- persist a report the way this resource expects — the real, registered
+-- /api/webhooks/trigger handler expects {application_id, event} for the
+-- unrelated application-review webhook feature, not an admin action
+-- report, so it will respond 400. Fix both together on the website side
+-- before relying on this export.
 exports("CreateWebsiteReport", function(report)
     ResolveUserByDiscord(report.admin and report.admin.discord or nil, function(adminUid)
         ResolveUserByDiscord(report.target and report.target.discord or nil, function(targetUid)
